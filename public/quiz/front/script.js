@@ -4,8 +4,6 @@ const quizModal = document.getElementById('quizModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
 const quizQuestionsContainer = document.getElementById('quizQuestionsContainer');
 
-fetch('https://quiz-grader-bt02.onrender.com/health').catch(() => console.log("Waking up server..."));
-
 let currentQuizQuestions = []; // Holds the active 10 questions
 
 // 2. Modal Logic
@@ -91,7 +89,7 @@ function displayQuiz() {
     quizQuestionsContainer.innerHTML = html;
 }
 
-// 5. Check Answers 
+// 5. Check Answers (Updated for C++ Render Backend)
 async function checkAnswers() {
     let userAnswers = []; // Array to hold the user's answers
     let correctAnswers = []; // Array to send to C++ for grading
@@ -116,6 +114,7 @@ async function checkAnswers() {
 
     // 2. Send data to the live Render C++ backend
     try {
+        // Show loading state (Render free tier takes ~30-50s to wake up!)
         submitBtn.disabled = true;
         submitBtn.innerHTML = "Grading... (Waking up server)";
 
