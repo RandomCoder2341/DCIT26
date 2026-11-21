@@ -89,60 +89,72 @@ function displayQuiz() {
     quizQuestionsContainer.innerHTML = html;
 }
 
-// 5. Check Answers 
-function checkAnswers() {
-    let score = 0; // Counter
-
-    // Loop to check answers
+// 5. Check Answers (Updated for C++ Render Backend)
+async function checkAnswers() {
+    let userAnswers = []; // Array to hold the user's answers
+    let correctAnswers = []; // Array to send to C++ for grading
+    
+    // Grab the submit button to show a loading state
+    const submitBtn = document.querySelector('button[onclick="checkAnswers()"]');
+    const originalBtnText = submitBtn.innerHTML;
+    
+    // 1. Gather the answers from the HTML
     for (let i = 0; i < currentQuizQuestions.length; i++) {
         let q = currentQuizQuestions[i];
-        let isCorrect = false;
+        correctAnswers.push(q.answer); // Send correct answer to C++ for comparison
 
         if (q.type === "multiple-choice") {
             let selected = document.querySelector(`input[name="question${i}"]:checked`);
-            if (selected && selected.value === q.answer) {
-                isCorrect = true;
-            }
+            userAnswers.push(selected ? selected.value : ""); // Push empty string if skipped
         } else if (q.type === "identification") {
             let userInput = document.getElementById(`input${i}`).value;
-            // .trim() removes extra spaces, .toLowerCase() ignores capitalization
-            if (userInput.trim().toLowerCase() === q.answer.trim().toLowerCase()) {
-                isCorrect = true;
-            }
-        }
-
-        if (isCorrect) {
-            score++;
+            userAnswers.push(userInput.trim());
         }
     }
 
-    // If/Else for remarks
-    let passingGrade = Math.ceil(currentQuizQuestions.length * 0.7); // 70% to pass
-    let remark = "";
-    let color = "";
-    
-    if (score >= passingGrade) {
-        remark = "Passed! Great job.";
-        color = "green";
-    } else {
-        remark = "Review again. Keep practicing!";
-        color = "red";
-    }
+    // 2. Send data to the live Render C++ backend
+    try {
+        // Show loading state (Render free tier takes ~30-50s to wake up!)
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = "Grading... (Waking up server)";
 
-    // Display Results and Correct Answers
-    let resultHTML = `<h3 style="color: ${color};">Your Score: ${score} / ${currentQuizQuestions.length}</h3>`;
-    resultHTML += `<p style="font-weight: bold; color: ${color};">Remark: ${remark}</p>`;
-    
-    resultHTML += `<h4 style="margin-top: 1.5rem;">Answer Key:</h4><ul style="list-style-type: none; padding: 0;">`;
-    for (let i = 0; i < currentQuizQuestions.length; i++) {
-        resultHTML += `<li style="margin-bottom: 0.5rem; padding: 0.5rem; background: #f4f4f4; border-radius: 5px;">
-                        <strong>Q${i+1}:</strong> ${currentQuizQuestions[i].answer}
-                      </li>`;
-    }
-    resultHTML += `</ul>`;
-    
-    // Add a "Retake" button to reload the page
-    resultHTML += `<button onclick="location.reload()" class="btn btn-primary" style="margin-top: 1rem;">Take Another Quiz</button>`;
+        const response = await fetch('https://quiz-grader-bt02.onrender.com/api/grade', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                answers: userAnswers,
+                correctAnswers: correctAnswers
+            })
+        });
 
-    document.getElementById('result-display').innerHTML = resultHTML;
+        const result = await response.json(); // Parse C++ response
+
+        // 3. Display Results (Using the data returned by C++)
+        let resultHTML = `<h3 style="color: ${result.color};">Your Score: ${result.score} / ${result.total}</h3>`;
+        resultHTML += `<p style="font-weight: bold; color: ${result.color};">Remark: ${result.remark}</p>`;
+        
+        resultHTML += `<h4 style="margin-top: 1.5rem;">Answer Key:</h4><ul style="list-style-type: none; padding: 0;">`;
+        for (let i = 0; i < currentQuizQuestions.length; i++) {
+            resultHTML += `<li style="margin-bottom: 0.5rem; padding: 0.5rem; background: #f4f4f4; border-radius: 5px;">
+                            <strong>Q${i+1}:</strong> ${currentQuizQuestions[i].answer}
+                          </li>`;
+        }
+        resultHTML += `</ul>`;
+        
+        resultHTML += `<button onclick="location.reload()" class="btn btn-primary" style="margin-top: 1rem;">Take Another Quiz</button>`;
+
+        // Hide the submit button and show the results
+        submitBtn.style.display = 'none'; 
+        document.getElementById('result-display').innerHTML = resultHTML;
+
+    } catch (error) {
+        console.error("Error connecting to C++ backend:", error);
+        alert("Could not connect to the C++ grading server. Is it running?");
+        
+        // Reset button if it fails
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+    }
 }
